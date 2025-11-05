@@ -1,0 +1,83 @@
+:root {
+  --bg: #111;
+  --fg: #fff;
+  --glass: rgba(255, 255, 255, 0.08);
+}
+
+.light {
+  --bg: #f7f7f7;
+  --fg: #222;
+  --glass: rgba(255, 255, 255, 0.6);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container {
+  width: 92%;
+  max-width: 450px;
+  height: 90vh;
+  padding: 18px;
+  border-radius: 22px;
+  background: var(--glass);
+  backdrop-filter: blur(25px) saturate(180%);
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.messages {
+  flex: 1;
+  margin: 15px 0;
+  overflow-y: auto;
+}
+
+.msg {
+  padding: 12px 18px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 14px;
+  margin-bottom: 10px;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+}
+
+textarea {
+  flex: 1;
+  border: none;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.2);
+  color: var(--fg);
+  resize: none;
+}
+
+button {
+  border: none;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.14);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+#chooseFolder {
+  width: 100%;
+  margin-top: 10px;
+}
