@@ -1,34 +1,47 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Portify</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-<script src="app.js" defer></script>
+  <meta charset="utf-8" />
+  <title>Portify</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/logo192.png">
+  <link rel="apple-touch-icon" href="assets/logo192.png">
+  <meta name="theme-color" content="#0b0b0f">
+  <link rel="stylesheet" href="static/style.css">
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script defer src="static/app.js"></script>
 </head>
-
 <body>
+  <div class="wrap">
+    <div class="card">
+      <header class="topbar">
+        <div class="title">Portify</div>
+        <div class="right">
+          <div id="netDot" class="dot offline" title="Disconnected"></div>
+          <button id="themeBtn" class="iconbtn" title="Toggle theme">🌗</button>
+          <button id="installBtn" class="primary small" hidden>Install</button>
+        </div>
+      </header>
 
-<div class="container glass">
-    <header>
-        <h1>Portify</h1>
-        <button id="themeToggle">🌗</button>
-    </header>
+      <section class="qr">
+        <img src="/qrcode.png" alt="Scan on phone" />
+        <div id="ipLine" class="hint"></div>
+      </section>
 
-    <div id="messages" class="messages"></div>
+      <section id="feed" class="feed"></section>
 
-    <div class="controls">
-        <textarea id="textBox" placeholder="Type a message…"></textarea>
-        <button id="sendTextBtn">Send</button>
-        <input type="file" id="fileInput" hidden>
-        <button id="sendFileBtn">📁 File</button>
+      <section class="composer">
+        <textarea id="msgBox" placeholder="Message…" rows="2"></textarea>
+        <div class="actions">
+          <input id="fileInput" type="file" hidden multiple />
+          <button id="fileBtn" class="iconbtn" title="Send files">📎</button>
+          <button id="sendBtn" class="primary">Send</button>
+        </div>
+      </section>
+
+      <div id="dropzone" class="drop">Drop files to send…</div>
     </div>
-
-    <button id="chooseFolder">Set Download Folder</button>
-</div>
-
+  </div>
 </body>
 </html>

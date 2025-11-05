@@ -1,71 +1,173 @@
-const socket = io();
-const messagesDiv = document.getElementById("messages");
-const textBox = document.getElementById("textBox");
-const sendBtn = document.getElementById("sendTextBtn");
-const fileBtn = document.getElementById("sendFileBtn");
-const fileInput = document.getElementById("fileInput");
-const themeToggle = document.getElementById("themeToggle");
-const chooseFolder = document.getElementById("chooseFolder");
+// ---- PWA install prompt ----
+let deferredPrompt;
+const installBtn = document.getElementById("installBtn");
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBtn.hidden = false;
+});
+installBtn?.addEventListener("click", async () => {
+  installBtn.hidden = true;
+  deferredPrompt?.prompt();
+  await deferredPrompt?.userChoice;
+  deferredPrompt = null;
+});
+let CLIENT_ID = localStorage.getItem("client-id");
+if (!CLIENT_ID) {
+    CLIENT_ID = crypto.randomUUID();
+    localStorage.setItem("client-id", CLIENT_ID);
+}
 
-sendBtn.onclick = () => {
-    let text = textBox.value.trim();
-    if (!text) return;
-
-    socket.emit("send_text", { text });
-    textBox.value = "";
-};
-
-fileBtn.onclick = () => fileInput.click();
-
-fileInput.onchange = async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-
-    const fd = new FormData();
-    fd.append("file", file);
-
-    await fetch("/upload", {
-        method: "POST",
-        body: fd
-    });
-};
-
-socket.on("update", data => {
-    messagesDiv.innerHTML = "";
-
-    data.messages.forEach(msg => {
-        const div = document.createElement("div");
-        div.className = "msg";
-
-        if (msg.type === "text") {
-            div.textContent = msg.content;
-        } else if (msg.type === "file") {
-            div.innerHTML = `
-                <strong>${msg.name}</strong><br>
-                <a href="${msg.url}" download>Download</a>
-            `;
-        }
-
-        messagesDiv.appendChild(div);
-    });
-
-    messagesDiv.scrollTo(0, messagesDiv.scrollHeight);
+// ---- Theme toggle ----
+const themeBtn = document.getElementById("themeBtn");
+const savedTheme = localStorage.getItem("theme");
+if (savedTheme === "light") document.body.classList.add("light");
+themeBtn.addEventListener("click", () => {
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
 });
 
-themeToggle.onclick = () => {
-    document.body.classList.toggle("light");
-};
+// ---- Socket / connectivity indicator ----
+const socket = io({ transports: ["websocket"], upgrade: false });
+const netDot = document.getElementById("netDot");
+socket.on("connect", () => { netDot.className = "dot online"; netDot.title = "Connected"; });
+socket.on("disconnect", () => { netDot.className = "dot offline"; netDot.title = "Disconnected"; });
+socket.on("reconnect_attempt", () => { netDot.className = "dot offline"; netDot.title = "Reconnecting…"; });
 
-chooseFolder.onclick = async () => {
-    const newDir = prompt("Enter download folder path:");
-    if (!newDir) return;
+const feed = document.getElementById("feed");
+const msgBox = document.getElementById("msgBox");
+const sendBtn = document.getElementById("sendBtn");
+const fileBtn = document.getElementById("fileBtn");
+const fileInput = document.getElementById("fileInput");
+const dropzone = document.getElementById("dropzone");
+const ipLine = document.getElementById("ipLine");
 
-    let res = await fetch("/set_download_dir", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ download_dir: newDir })
-    });
+socket.on("bootstrap", ({ messages, ip }) => {
+  ipLine.textContent = `Scan or open: http://${ip}:5000`;
+  feed.innerHTML = "";
+  messages.forEach(addItem);
+  autoscroll();
+});
 
-    const data = await res.json();
-    alert("Saved to: " + data.download_dir);
-};
+socket.on("history_append", ({ items }) => {
+  items.forEach(addItem);
+  autoscroll();
+});
+
+function addItem(item) {
+  const wrap = document.createElement("div");
+
+  // Apply bubble class
+  wrap.className = "bubble";
+
+  // ✅ If message is from THIS device → align right
+  if (item.client_id === CLIENT_ID) {
+    wrap.classList.add("me");
+  }
+
+  // Add timestamp
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = new Date(item.time || Date.now()).toLocaleTimeString();
+  wrap.appendChild(meta);
+
+  // ✅ Text message
+  if (item.type === "text") {
+    const p = document.createElement("div");
+    p.textContent = item.content;
+    wrap.appendChild(p);
+  }
+
+  // ✅ File message
+  else if (item.type === "file") {
+    const a = document.createElement("a");
+    a.href = item.download || item.url;
+    a.download = item.name;
+    a.className = "filelink";
+    a.textContent = "⬇ " + item.name;
+    wrap.appendChild(a);
+
+    // Inline previews:
+    if (/\.(png|jpg|jpeg|gif|webp)$/i.test(item.name)) {
+      const img = document.createElement("img");
+      img.src = item.url;
+      img.className = "preview";
+      wrap.appendChild(img);
+    }
+    if (/\.(mp4|webm)$/i.test(item.name)) {
+      const v = document.createElement("video");
+      v.src = item.url;
+      v.controls = true;
+      v.className = "preview";
+      wrap.appendChild(v);
+    }
+  }
+
+  feed.appendChild(wrap);
+}
+
+
+function autoscroll() {
+  feed.scrollTop = feed.scrollHeight;
+}
+
+// ---- Send text (button + Enter) ----
+sendBtn.addEventListener("click", () => {
+  const text = msgBox.value.trim();
+  if (!text) return;
+socket.emit("send_text", { text, client_id: CLIENT_ID });
+  // show immediately as mine
+  addItem({ type: "text", content: text, time: new Date().toISOString(), local: true });
+  msgBox.value = "";
+  autoscroll();
+});
+msgBox.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
+
+// ---- File send (picker) ----
+fileBtn.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  if (!fileInput.files?.length) return;
+  uploadFiles(fileInput.files);
+  fileInput.value = "";
+});
+
+// ---- Drag & drop ----
+["dragenter","dragover"].forEach(evt => dropzone.addEventListener(evt, e => {
+  e.preventDefault(); dropzone.classList.add("show");
+}));
+["dragleave","drop"].forEach(evt => dropzone.addEventListener(evt, e => {
+  e.preventDefault(); dropzone.classList.remove("show");
+}));
+dropzone.addEventListener("drop", (e) => {
+  const files = e.dataTransfer.files;
+  if (files?.length) uploadFiles(files);
+});
+
+function uploadFiles(files) {
+  const fd = new FormData();
+  for (const f of files) fd.append("files[]", f);
+  fetch("/upload", { method: "POST", body: fd }).then(() => {
+    // optimistic: show names immediately
+    for (const f of files) {
+      addItem({
+        type: "file",
+        name: f.name,
+        url: "#",
+        download: "#",
+        time: new Date().toISOString(),
+        local: true
+      });
+    }
+    autoscroll();
+  });
+}
+
+// ---- Register service worker (PWA) ----
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js").catch(()=>{});
+}
