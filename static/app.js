@@ -188,80 +188,110 @@ function uploadFiles(files) {
   const ids = [];
   const placeholders = [];
 
-  // Create optimistic placeholders with progress bars
+  // 1) Create placeholders + progress UI
   for (const f of files) {
     const id = generateId();
     ids.push(id);
 
     const item = {
-      id, type:"file", name:f.name, url:"#", download:"#",
-      time:new Date().toISOString(), client_id: CLIENT_ID,
-      size: f.size, kind: f.type || "application/octet-stream"
+      id,
+      type: "file",
+      name: f.name,
+      url: "#",
+      download: "#",
+      time: new Date().toISOString(),
+      client_id: CLIENT_ID,
+      size: f.size,
+      kind: f.type || "application/octet-stream"
     };
+
+    // Render bubble
     addItem(item);
     placeholders.push(id);
 
-    // attach a progress bar to that row
+    // Attach progress components to bubble
     const row = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
-    if (row) {
+    const bubble = row?.querySelector(".bubble");
+    if (bubble) {
+      // PROGRESS BAR
       const bar = document.createElement("div");
-      bar.style.marginTop = "8px";
-      bar.style.height = "6px";
-      bar.style.borderRadius = "6px";
-      bar.style.background = "rgba(255,255,255,.15)";
+      bar.className = "upbar";
+
       const fill = document.createElement("div");
-      fill.style.height = "100%";
-      fill.style.width = "0%";
-      fill.style.borderRadius = "6px";
-      fill.style.background = "linear-gradient(90deg,#7aa2ff,#74ffe6)";
+      fill.className = "upfill";
       bar.appendChild(fill);
-      row.querySelector(".bubble")?.appendChild(bar);
-      row.dataset.progressRef = id;
+
+      // SPEED LINE
+      const sp = document.createElement("div");
+      sp.className = "speedline";
+      sp.textContent = "Starting…";
+
+      bubble.appendChild(bar);
+      bubble.appendChild(sp);
     }
   }
 
-  // Build FormData
+  // 2) Build FormData
   const fd = new FormData();
   for (const f of files) fd.append("files[]", f);
   for (const id of ids) fd.append("ids[]", id);
   fd.append("client_id", CLIENT_ID);
 
-  // Use XHR for progress
+  // 3) Upload with XHR (needed for progress)
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/upload", true);
+
+  const startTime = Date.now();
+
   xhr.upload.onprogress = (e) => {
     if (!e.lengthComputable) return;
+
     const pct = Math.round((e.loaded / e.total) * 100);
-    // update all placeholder bars uniformly (simple, multi-file)
+    const elapsed = (Date.now() - startTime) / 1000; // sec
+    const speed = e.loaded / elapsed;                // bytes/sec
+    const remaining = e.total - e.loaded;
+    const eta = remaining / speed;                   // sec
+
+    const niceSpeed = speed > 1_000_000
+      ? (speed / 1_000_000).toFixed(1) + " MB/s"
+      : (speed / 1000).toFixed(1) + " KB/s";
+
+    const niceETA = eta > 60
+      ? Math.round(eta/60) + "m"
+      : Math.round(eta) + "s";
+
+    // Update every placeholder bubble
     placeholders.forEach(id => {
       const row = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
-      const fill = row?.querySelector('[data-progress]') || null;
-    });
-    // Better: update each bar; as a simple approach, set all:
-    document.querySelectorAll('[data-id]').forEach(r => {
-      const bubble = r.querySelector('.bubble');
-      const bar = bubble?.lastElementChild;
-      if (bar && bar.firstChild && bar.firstChild.style) {
-        bar.firstChild.style.width = pct + "%";
-      }
+      if (!row) return;
+
+      const bubble = row.querySelector(".bubble");
+
+      const fill = bubble?.querySelector(".upfill");
+      if (fill) fill.style.width = pct + "%";
+
+      const sp = bubble?.querySelector(".speedline");
+      if (sp) sp.textContent = `${niceSpeed} • ${niceETA} left`;
     });
   };
+
   xhr.onload = () => {
-    // server will broadcast real items; placeholders remain but progress bars stay; they’ll be replaced visually by real download links
-    // Optionally remove bars after short delay:
-    setTimeout(()=>{
-      placeholders.forEach(id=>{
+    // Server will send real bubbles via socket
+    // Remove progress UI
+    setTimeout(() => {
+      placeholders.forEach(id => {
         const row = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
-        const bubble = row?.querySelector('.bubble');
-        const bar = bubble?.lastElementChild;
-        if (bar && bar.firstChild && bar.firstChild.style && bar.firstChild.style.width === "100%") {
-          bar.remove();
-        }
+        if (!row) return;
+        const bubble = row.querySelector(".bubble");
+        bubble?.querySelector(".upbar")?.remove();
+        bubble?.querySelector(".speedline")?.remove();
       });
-    }, 800);
+    }, 500);
   };
+
   xhr.send(fd);
 }
+
 
 /**************** SERVICE WORKER ****************/
 if ("serviceWorker" in navigator) {
