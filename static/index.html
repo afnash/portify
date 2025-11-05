@@ -1,43 +1,66 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Portify</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b0b0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="static/assets/logo192.png">
+  <link rel="apple-touch-icon" href="static/assets/logo192.png">
+
   <link rel="stylesheet" href="static/style.css">
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
 </head>
-
 <body>
   <div class="wrap">
     <div class="card">
 
+      <!-- Top bar -->
       <header class="topbar">
-        <h1>Portify</h1>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div id="netDot" class="dot offline"></div>
-          <button id="themeBtn" class="iconbtn">🌗</button>
+        <div class="brand">
+          <img src="static/assets/logo192.png" alt="" class="brand-logo">
+          <span class="brand-name">Portify</span>
+        </div>
+        <div class="top-actions">
+          <div id="netDot" class="dot offline" title="Disconnected"></div>
+          <button id="themeBtn" class="iconbtn" title="Toggle theme">🌗</button>
+          <button id="stopBtn" class="iconbtn danger" title="Stop server">⛔</button>
           <button id="installBtn" class="primary small" hidden>Install</button>
         </div>
       </header>
 
+      <!-- Collapsible QR (Update 4) -->
       <section class="qr">
-        <img src="/qrcode.png" width="120">
-        <div id="ipLine" class="hint"></div>
+        <div class="qr-header">
+          <div class="hint">Scan on your phone to connect</div>
+          <button id="qrToggle" class="iconbtn caret" title="Collapse">▼</button>
+        </div>
+        <div id="qrBody" class="qr-body">
+          <img src="/qrcode.png" alt="Scan" class="qr-img">
+          <div id="ipLine" class="hint"></div>
+        </div>
       </section>
 
+      <!-- Messages -->
       <section id="feed" class="feed"></section>
 
+      <!-- Composer -->
       <section class="composer">
         <textarea id="msgBox" placeholder="Message…"></textarea>
-        <input type="file" id="fileInput" hidden multiple>
-        <button id="fileBtn" class="iconbtn">📎</button>
-        <button id="sendBtn" class="primary">Send</button>
+        <div class="actions">
+          <input type="file" id="fileInput" hidden multiple>
+          <button id="fileBtn" class="iconbtn" title="Send files">📎</button>
+          <button id="sendBtn" class="primary">Send</button>
+        </div>
       </section>
 
-      <div id="dropzone" class="drop">Drop files…</div>
+      <!-- Drag drop -->
+      <div id="dropzone" class="drop">Drop files to send…</div>
 
     </div>
   </div>

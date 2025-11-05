@@ -2,9 +2,12 @@
   "name": "Portify",
   "short_name": "Portify",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0b0b0f",
   "theme_color": "#0b0b0f",
+  "prefer_related_applications": false,
   "icons": [
     { "src": "assets/logo192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "assets/logo512.png", "sizes": "512x512", "type": "image/png" }

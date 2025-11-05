@@ -1,10 +1,11 @@
-const CACHE = "portify-v1";
+const CACHE = "portify-v3"; // bump this on changes
 const ASSETS = [
   "/",
   "/style.css",
   "/app.js",
   "/manifest.json",
   "/assets/logo192.png",
+  "/assets/logo512.png"
 ];
 
 self.addEventListener("install", (e) => {
