@@ -1,34 +1,31 @@
-from flask import Flask, send_from_directory
-from flask_cors import CORS
-from flask_socketio import SocketIO, emit
-
-app = Flask(__name__, static_folder="static")
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
-
-shared_data = {"text": ""}
-
-@app.route("/")
-def index():
-    return app.send_static_file("index.html")
-
-@app.route("/manifest.json")
-def manifest():
-    return send_from_directory("static", "manifest.json")
-
-@app.route("/service-worker.js")
-def sw():
-    return send_from_directory("static", "service-worker.js")
-
-# --- SOCKET EVENTS ---
 @socketio.on("connect")
 def handle_connect():
-    emit("update_text", shared_data, broadcast=True)
+    socketio.emit("update_data", shared_data)
 
 @socketio.on("set_text")
 def handle_set_text(data):
     shared_data["text"] = data.get("text", "")
-    emit("update_text", shared_data, broadcast=True)
+    socketio.emit("update_data", shared_data)
 
-if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000)
+@socketio.on("set_image")
+def handle_set_image(data):
+    shared_data["image"] = data.get("image", None)
+    socketio.emit("update_data", shared_data)
+
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return {"error": "No file provided"}, 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return {"error": "Empty filename"}, 400
+
+    filename = secure_filename(file.filename)
+    file.save(os.path.join(UPLOAD_FOLDER, filename))
+    file_url = f"/uploads/{filename}"
+
+    shared_data["file"] = {"name": filename, "url": file_url}
+    socketio.emit("update_data", shared_data)
+
+    return {"status": "ok", "url": file_url}

@@ -5,77 +5,232 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Portify</title>
 
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#3f51b5" />
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
 
   <style>
     body {
-      background: #121212;
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background: linear-gradient(135deg, #0f0f0f, #1c1c1c);
       color: white;
-      font-family: system-ui, sans-serif;
-      text-align: center;
-      margin-top: 60px;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
-    h2 {
-      color: #b0b0b0;
-      font-weight: 500;
-    }
-    textarea {
+
+    .container {
       width: 90%;
-      height: 160px;
-      background: #1e1e1e;
-      color: white;
+      max-width: 500px;
+      padding: 25px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      animation: fadeIn 0.4s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      font-weight: 500;
+      color: #e0e0e0;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
       border: none;
-      outline: none;
-      padding: 12px;
-      border-radius: 8px;
+      border-radius: 12px;
+      margin: 10px 0;
+      background: linear-gradient(135deg, #3f51b5, #5c6bc0);
       font-size: 1rem;
+      font-weight: 500;
+      color: white;
+      cursor: pointer;
+      transition: 0.25s;
+    }
+
+    .btn:hover {
+      background: linear-gradient(135deg, #5c6bc0, #7986cb);
+      transform: translateY(-2px);
+    }
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      background: rgba(255,255,255,0.08);
+      border: none;
+      border-radius: 12px;
+      padding: 12px;
+      color: white;
+      font-size: 1rem;
+      margin-top: 10px;
       resize: none;
     }
-    button {
-      margin-top: 15px;
-      padding: 10px 24px;
-      border: none;
-      border-radius: 8px;
-      background: #3f51b5;
-      color: white;
-      font-weight: 500;
-      cursor: pointer;
-      transition: 0.2s;
+
+    .preview-box {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
     }
-    button:hover {
-      background: #5c6bc0;
+
+    img, video {
+      max-width: 100%;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+
+    .file-link {
+      display: block;
+      margin-top: 10px;
+      color: #80d8ff;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    /* Loading overlay */
+    #loadingOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 1.2rem;
+      z-index: 999;
+    }
+
+    .loader {
+      border: 6px solid #ffffff20;
+      border-top: 6px solid #80d8ff;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 
 <body>
-  <h2>⚡ Portify Clipboard</h2>
-  <textarea id="text" placeholder="Type or paste here..."></textarea><br />
-  <button onclick="sendText()">Sync</button>
 
-  <script>
-    // Connect to same origin (auto-detect host)
-    const socket = io({ transports: ["websocket"], upgrade: false });
-    const textArea = document.getElementById("text");
+<div id="loadingOverlay">
+  <div style="text-align:center;">
+    <div class="loader"></div>
+    Uploading…
+  </div>
+</div>
 
-    socket.on("update_text", data => {
-      if (textArea.value !== data.text) textArea.value = data.text;
-    });
+<div class="container">
+  <h2>⚡ Portify</h2>
 
-    function sendText() {
-      socket.emit("set_text", { text: textArea.value });
+  <button class="btn" onclick="showTextMode()">✍️ Send Text</button>
+  <button class="btn" onclick="triggerFilePicker()">📁 Send Files</button>
+
+  <div id="textSection" style="display:none;">
+    <textarea id="text" placeholder="Type or paste text here…"></textarea>
+    <button class="btn" onclick="sendText()">Send Text</button>
+  </div>
+
+  <input type="file" id="fileInput" style="display:none;" onchange="sendFile()" />
+
+  <div class="preview-box" id="previewBox" style="display:none;">
+    <h3>Received:</h3>
+    <img id="previewImage" style="display:none;">
+    <video id="previewVideo" controls style="display:none;"></video>
+    <a id="downloadLink" class="file-link"></a>
+  </div>
+</div>
+
+<script>
+  const socket = io({ transports: ["websocket"], upgrade: false });
+  const textSection = document.getElementById("textSection");
+  const textArea = document.getElementById("text");
+  const fileInput = document.getElementById("fileInput");
+  const loadingOverlay = document.getElementById("loadingOverlay");
+
+  const previewBox = document.getElementById("previewBox");
+  const previewImage = document.getElementById("previewImage");
+  const previewVideo = document.getElementById("previewVideo");
+  const downloadLink = document.getElementById("downloadLink");
+
+  function showTextMode() {
+    textSection.style.display = "block";
+  }
+
+  function triggerFilePicker() {
+    fileInput.click();
+  }
+
+  socket.on("update_data", data => {
+    previewBox.style.display = "block";
+
+    if (data.text && textArea.value !== data.text) {
+      textArea.value = data.text;
     }
 
-    textArea.addEventListener("input", () => {
-      socket.emit("set_text", { text: textArea.value });
-    });
+    // Reset views
+    previewImage.style.display = "none";
+    previewVideo.style.display = "none";
+    downloadLink.textContent = "";
+    downloadLink.href = "";
 
-    // Register service worker for PWA support
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/service-worker.js");
+    if (data.image) {
+      previewImage.src = data.image;
+      previewImage.style.display = "block";
     }
-  </script>
+
+    if (data.file) {
+      let url = data.file.url;
+      let name = data.file.name;
+
+      // Auto-detect video preview
+      if (name.match(/\.(mp4|webm|mov)$/i)) {
+        previewVideo.src = url;
+        previewVideo.style.display = "block";
+      }
+
+      downloadLink.textContent = "📄 Download: " + name;
+      downloadLink.href = url;
+    }
+  });
+
+  function sendText() {
+    socket.emit("set_text", { text: textArea.value });
+  }
+
+  function sendFile() {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    loadingOverlay.style.display = "flex";
+
+    const formData = new FormData();
+    formData.append("file", file);
+    fetch("/upload", { method: "POST", body: formData })
+      .then(() => {
+        fileInput.value = "";
+        loadingOverlay.style.display = "none";
+      });
+  }
+</script>
+
 </body>
 </html>
