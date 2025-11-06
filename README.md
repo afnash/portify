@@ -85,24 +85,41 @@ Done — you can now chat, copy, or transfer files instantly.
 
 📂 Project Structure
 portify/
+
 │
+
 ├── server.py                 # Flask + Socket.IO backend
+
 ├── requirements.txt          # Dependencies
+
 ├── portify-tray.sh           # Linux tray integration
+
 │
+
 ├── static/
+
 │   ├── index.html            # Frontend UI
+
 │   ├── app.js                # Client logic
+
 │   ├── style.css             # UI styles (glass theme)
+
 │   ├── manifest.json         # PWA metadata
+
 │   ├── service-worker.js     # Caching / install script
+
 │   └── assets/
+
 │       ├── logo192.png
+
 │       └── logo512.png
+
 │
+
 └── ~/Downloads/Portify/      # Default file save directory
 
-🧠 Tech Stack
+
+## 🧠 Tech Stack
 Layer	Technology
 Backend	Python, Flask, Flask-SocketIO
 Frontend	HTML, CSS, Vanilla JS
@@ -110,24 +127,35 @@ Realtime	WebSockets
 Styling	Tailwind-inspired glassmorphism
 Security	OTP verification, isolated LAN communication
 System	Linux, YAD tray integration
-🔒 Security Notes
+
+## 🔒 Security Notes
 
 Portify is meant for trusted local networks.
 Data is transferred directly between devices using WebSockets over LAN.
 No external servers, databases, or tracking systems are used.
 Each session resets with a new OTP to prevent reuse.
 
-🧭 Roadmap
+## 🧭 Roadmap
+
 Status	Feature
 ✅	Text & file transfer
+
 ✅	OTP-secured session
+
 ✅	Auto file cleanup
+
 ✅	Modern dark/light UI
+
 🔄	Android WebView app
+
 🔄	Push notifications
+
 🔄	Windows tray client
+
 🔄	Optional HTTPS PWA support
+
 🔄	Share-to-Portify Android intent
+
 🛠 Development Notes
 
 Works best on Python 3.10+
@@ -141,28 +169,22 @@ To run headless:
 
 Files uploaded are auto-served via /uploads/ and can be downloaded anytime.
 
-❤️ Author
+## ❤️ Author
 
 Afnash
-B.Tech CSE @ CUSAT
 💡 Passionate about building useful, privacy-first software.
 
-🪄 Acknowledgements
+## 🪄 Acknowledgements
 
 Flask & Flask-SocketIO community
 
 Inspiration from KDE Connect, Snapdrop & LocalSend
 
-🧾 License
+## 🧾 License
 
 MIT License © 2025 Afnash
 
-🌟 Support
+##🌟 Support
 
 If you found Portify interesting,
 ⭐ Star this repo — it helps more developers discover it!
-python3 -m venv venv
-source venv/bin/activate
-
-git clone https://github.com/afnash/portify.git
-cd portify
