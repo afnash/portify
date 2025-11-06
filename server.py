@@ -1,14 +1,10 @@
-import os, io, socket, json, threading, time, mimetypes
+import os, io, socket, threading, time, mimetypes, secrets, random
 from datetime import datetime, timedelta
-from flask import Flask, send_from_directory, send_file, request
+from flask import Flask, send_from_directory, send_file, request, abort
 from flask_socketio import SocketIO
 from werkzeug.utils import secure_filename
 
-try:
-    import qrcode
-except ImportError:
-    qrcode = None
-
+# --- Paths / App ---
 BASE = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE, "static")
 DOWNLOAD_DIR = os.path.expanduser("~/Downloads/Portify")
@@ -17,10 +13,20 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 app = Flask(__name__, static_folder="static")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-STATE = {"messages": []}  # list of items {id,type,content/name,url,download,time,client_id,size,kind}
+# --- Session Security ---
+SESSION_ID = secrets.token_hex(8)                   # changes every restart
+OTP = f"{random.randint(0, 999999):06d}"            # 6-digit OTP per restart
+verified_sids = set()                               # connected, OTP-verified sockets
+upload_tokens = set()                               # bearer tokens for HTTP uploads (per session)
 
-def now_iso():
-    return datetime.now().isoformat()
+print(f"[Portify] Session: {SESSION_ID}")
+print(f"[Portify] OTP (share locally only): {OTP}")
+
+# --- In-memory state ---
+STATE = {"messages": []}  # list of dicts
+
+# --- Helpers ---
+def now_iso(): return datetime.now().isoformat()
 
 def lan_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -40,61 +46,57 @@ def human_size(num):
         num /= 1024.0
     return f"{num:.1f} PB"
 
+# --- Routes (static/PWA/QR) ---
 @app.route("/")
-def index():
-    return app.send_static_file("index.html")
+def index(): return app.send_static_file("index.html")
 
 @app.route("/manifest.json")
-def manifest():
-    return send_from_directory(STATIC_DIR, "manifest.json")
+def manifest(): return send_from_directory(STATIC_DIR, "manifest.json")
 
 @app.route("/service-worker.js")
-def sw():
-    return send_from_directory(STATIC_DIR, "service-worker.js")
+def sw(): return send_from_directory(STATIC_DIR, "service-worker.js")
 
 @app.route("/uploads/<path:filename>")
-def uploads(filename):
-    return send_from_directory(DOWNLOAD_DIR, filename)
+def uploads(filename): return send_from_directory(DOWNLOAD_DIR, filename)
 
 @app.route("/download/<path:filename>")
-def download(filename):
-    return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
+def download(filename): return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
 
 @app.route("/qrcode.png")
 def qrcode_png():
-    url = f"http://{lan_ip()}:5000"
-    if qrcode is None:
-        buf = io.BytesIO(b"\x89PNG\r\n\x1a\n")
+    try:
+        import qrcode
+        img = qrcode.make(f"http://{lan_ip()}:5000")
+        buf = io.BytesIO(); img.save(buf, format="PNG"); buf.seek(0)
         return send_file(buf, mimetype="image/png")
-    img = qrcode.make(url)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    except Exception:
+        # tiny valid PNG header fallback
+        return send_file(io.BytesIO(b"\x89PNG\r\n\x1a\n"), mimetype="image/png")
 
+# --- Secure Upload (requires token) ---
 @app.route("/upload", methods=["POST"])
 def upload():
-    """
-    Supports multi-file upload with per-file client-generated IDs (ids[])
-    and client_id for sender attribution.
-    """
+    token = request.form.get("token", "")
+    if token not in upload_tokens:
+        return {"error": "Unauthorized"}, 403
+
     files = request.files.getlist("files[]")
     ids = request.form.getlist("ids[]")
     client_id = request.form.get("client_id")
     posted = []
 
     for idx, f in enumerate(files):
-        if not f or not f.filename:
-            continue
+        if not f or not f.filename: continue
         name = secure_filename(f.filename)
         path = os.path.join(DOWNLOAD_DIR, name)
         f.save(path)
         size = os.path.getsize(path)
         url = f"/uploads/{name}"
-        dl = f"/download/{name}"
+        dl  = f"/download/{name}"
         kind, _ = mimetypes.guess_type(name)
+
         item = {
-            "id": (ids[idx] if idx < len(ids) else f"file-{int(time.time()*1000)+idx}"),
+            "id": (ids[idx] if idx < len(ids) else secrets.token_hex(6)),
             "type": "file",
             "name": name,
             "url": url,
@@ -111,26 +113,65 @@ def upload():
         socketio.emit("history_append", {"items": posted})
     return {"ok": True}
 
-# --- SOCKET EVENTS ---
+# --- Stop server endpoint (from UI) ---
+@app.route("/__shutdown__", methods=["POST"])
+def shutdown():
+    func = request.environ.get("werkzeug.server.shutdown")
+    if func is None:
+        abort(500)
+    try:
+        socketio.stop()
+    finally:
+        func()
+    return "Server shutting down..."
 
+# --- Socket events ---
 from flask import request
 
 @socketio.on("connect")
 def on_connect():
-    # Send bootstrap ONLY to this client (fixes clearing on other devices)
-    socketio.emit(
-        "bootstrap",
-        {"messages": STATE["messages"], "ip": lan_ip()},
-        to=request.sid
-    )
+    # Tell client OTP is required; if they have a valid token they'll call verify_token
+    socketio.emit("otp_required", {"session": SESSION_ID}, to=request.sid)
+
+@socketio.on("disconnect")
+def on_disconnect():
+    verified_sids.discard(request.sid)
+
+@socketio.on("verify_otp")
+def verify_otp(data):
+    sid = request.sid
+    user_otp = (data or {}).get("otp", "")
+    if user_otp == OTP:
+        verified_sids.add(sid)
+        # grant an upload token for this session
+        token = secrets.token_hex(16)
+        upload_tokens.add(token)
+        socketio.emit("otp_ok", {"token": token}, to=sid)
+        # send bootstrap just to this client
+        socketio.emit("bootstrap", {"messages": STATE["messages"], "ip": lan_ip()}, to=sid)
+    else:
+        socketio.emit("otp_fail", {}, to=sid)
+
+@socketio.on("verify_token")
+def verify_token(data):
+    sid = request.sid
+    token = (data or {}).get("token", "")
+    if token in upload_tokens:
+        verified_sids.add(sid)
+        socketio.emit("otp_ok", {"token": token}, to=sid)
+        socketio.emit("bootstrap", {"messages": STATE["messages"], "ip": lan_ip()}, to=sid)
+    else:
+        socketio.emit("otp_fail", {}, to=sid)
 
 @socketio.on("send_text")
 def on_send_text(data):
+    if request.sid not in verified_sids:
+        return  # ignore unverified
     text = (data or {}).get("text", "").strip()
     if not text:
         return
     item = {
-        "id": data.get("id"),
+        "id": (data.get("id") or secrets.token_hex(6)),
         "type": "text",
         "content": text,
         "time": now_iso(),
@@ -139,28 +180,22 @@ def on_send_text(data):
     STATE["messages"].append(item)
     socketio.emit("history_append", {"items": [item]})
 
-# --- AUTO DELETE (UPDATE 21) ---
-
+# --- Auto delete (24h) ---
 def auto_delete(hours=24, interval_sec=1800):
     cutoff = timedelta(hours=hours)
     while True:
         try:
             now = datetime.now()
-            keep = []
-            deleted_ids = []
+            keep, deleted_ids = [], []
             for item in STATE["messages"]:
-                try:
-                    ts = datetime.fromisoformat(item["time"])
-                except Exception:
-                    ts = now
+                try: ts = datetime.fromisoformat(item["time"])
+                except: ts = now
                 if now - ts > cutoff:
                     if item.get("type") == "file":
                         fp = os.path.join(DOWNLOAD_DIR, item.get("name",""))
                         if os.path.isfile(fp):
-                            try:
-                                os.remove(fp)
-                            except Exception:
-                                pass
+                            try: os.remove(fp)
+                            except: pass
                     deleted_ids.append(item.get("id"))
                 else:
                     keep.append(item)
@@ -172,18 +207,6 @@ def auto_delete(hours=24, interval_sec=1800):
         time.sleep(interval_sec)
 
 threading.Thread(target=auto_delete, daemon=True).start()
-
-from flask import abort
-
-@app.route("/__shutdown__", methods=["POST"])
-def shutdown():
-    func = request.environ.get("werkzeug.server.shutdown")
-    if func is None:
-        abort(500)
-    socketio.stop()  # stop socketio
-    func()           # stop flask
-    return "Server shutting down..."
-
 
 if __name__ == "__main__":
     print(f"Portify on http://{lan_ip()}:5000")

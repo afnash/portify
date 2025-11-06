@@ -11,12 +11,23 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" href="static/assets/logo192.png">
-  <link rel="apple-touch-icon" href="static/assets/logo192.png">
+  <link rel="apple-touch-icon" href="assets/logo192.png">
 
   <link rel="stylesheet" href="static/style.css">
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
 </head>
 <body>
+  <!-- OTP LOCK OVERLAY -->
+  <div id="lock" class="lock show">
+    <div class="lock-card">
+      <div class="lock-title">Secure Session</div>
+      <div class="lock-sub">Enter 6-digit OTP to connect</div>
+      <input id="otpInput" class="otp-input" inputmode="numeric" maxlength="6" placeholder="______" />
+      <button id="otpBtn" class="primary wide">Verify</button>
+      <div id="otpError" class="lock-err" hidden>Invalid OTP. Try again.</div>
+    </div>
+  </div>
+
   <div class="wrap">
     <div class="card">
 
@@ -29,12 +40,12 @@
         <div class="top-actions">
           <div id="netDot" class="dot offline" title="Disconnected"></div>
           <button id="themeBtn" class="iconbtn" title="Toggle theme">🌗</button>
-          <button id="stopBtn" class="iconbtn danger" title="Stop server">⛔</button>
+          <button id="stopBtn" class="iconbtn danger" title="End connection">⛔</button>
           <button id="installBtn" class="primary small" hidden>Install</button>
         </div>
       </header>
 
-      <!-- Collapsible QR (Update 4) -->
+      <!-- Collapsible QR -->
       <section class="qr">
         <div class="qr-header">
           <div class="hint">Scan on your phone to connect</div>
