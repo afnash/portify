@@ -30,7 +30,7 @@ launch_terminal() {
 if ! pgrep -f "server.py" > /dev/null ; then
     launch_terminal
     sleep 2
-    xdg-open "http://localhost:5000" >/dev/null 2>&1 &
+    xdg-open "https://localhost:5000" >/dev/null 2>&1 &
 fi
 
 
@@ -38,7 +38,7 @@ fi
 yad --notification \
     --image="$APPDIR/static/assets/logo192.png" \
     --text="Portify Running" \
-    --command="xdg-open http://localhost:5000" \
+    --command="xdg-open https://localhost:5000" \
     --menu="Open UI!$APPDIR/tray-actions.sh open\
            |Restart Server!$APPDIR/tray-actions.sh restart\
            |Stop Server!$APPDIR/tray-actions.sh stop\

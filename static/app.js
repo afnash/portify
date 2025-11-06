@@ -1,3 +1,17 @@
+console.log("🔥 app.js loaded on device:", navigator.userAgent);
+
+if ("serviceWorker" in navigator) {
+  console.log("✅ Service worker API available, registering...");
+  navigator.serviceWorker.register("/service-worker.js")
+    .then(reg => console.log("✅ SW registered:", reg.scope))
+    .catch(err => console.error("❌ SW registration error:", err));
+} else {
+  console.error("❌ Service worker NOT supported");
+}
+
+
+
+
 /**************** DEVICE ID FIRST ****************/
 function generateId(){
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -283,6 +297,9 @@ stopBtn.addEventListener("click", ()=>{
 });
 
 /**************** SERVICE WORKER ****************/
-if ("serviceWorker" in navigator){
-  navigator.serviceWorker.register("/service-worker.js").catch(()=>{});
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/static/service-worker.js")
+    .then(() => console.log("SW registered"))
+    .catch(err => console.error("SW failed", err));
 }
+

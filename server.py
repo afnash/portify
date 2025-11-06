@@ -11,7 +11,7 @@ DOWNLOAD_DIR = os.path.expanduser("~/Downloads/Portify")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 app = Flask(__name__, static_folder="static")
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # --- Session Security ---
 SESSION_ID = secrets.token_hex(8)                   # changes every restart
@@ -54,7 +54,13 @@ def index(): return app.send_static_file("index.html")
 def manifest(): return send_from_directory(STATIC_DIR, "manifest.json")
 
 @app.route("/service-worker.js")
-def sw(): return send_from_directory(STATIC_DIR, "service-worker.js")
+def sw():
+    return send_from_directory(
+        STATIC_DIR,
+        "service-worker.js",
+        mimetype="application/javascript"
+    )
+
 
 @app.route("/uploads/<path:filename>")
 def uploads(filename): return send_from_directory(DOWNLOAD_DIR, filename)
@@ -209,5 +215,22 @@ def auto_delete(hours=24, interval_sec=1800):
 threading.Thread(target=auto_delete, daemon=True).start()
 
 if __name__ == "__main__":
-    print(f"Portify on http://{lan_ip()}:5000")
-    socketio.run(app, host="0.0.0.0", port=5000)
+    import ssl
+
+    ip = lan_ip()
+    port = 5000
+
+    print(f"Portify running securely at https://{ip}:{port}")
+    print(f"OTP (share locally only): {OTP}")
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain("certs/cert.pem", "certs/key.pem")
+
+    socketio.run(
+        app,
+        host="0.0.0.0",
+        port=port,
+        ssl_context=context
+    )
+
+
