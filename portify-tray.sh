@@ -3,43 +3,28 @@
 APPDIR="$(dirname "$(realpath "$0")")"
 cd "$APPDIR"
 
-# Prevent duplicate tray icons
+# Prevent multiple tray icons
 if pgrep -f "portify-tray.sh" | grep -v $$ > /dev/null; then
     exit 0
 fi
 
-# Auto-detect python in venv
-if [ -x "$APPDIR/venv/bin/python3" ]; then
-    PYTHON="$APPDIR/venv/bin/python3"
-elif [ -x "$APPDIR/venv/bin/python" ]; then
+# Auto-detect Python
+if [ -x "$APPDIR/venv/bin/python" ]; then
     PYTHON="$APPDIR/venv/bin/python"
+elif [ -x "$APPDIR/venv/bin/python3" ]; then
+    PYTHON="$APPDIR/venv/bin/python3"
 else
-    PYTHON=$(find "$APPDIR/venv/bin" -maxdepth 1 -type f -name "python*" | head -n 1)
+    PYTHON=$(which python3)
 fi
 
-# Function to open server in terminal (OTP visible)
-launch_terminal() {
-    /usr/bin/gnome-terminal.real -- bash -c "
-        cd \"$APPDIR\";
-        \"$PYTHON\" server.py;
-        exec bash
-    "
-}
-
-# Start server if not already running
+# Start server if not running
 if ! pgrep -f "server.py" > /dev/null ; then
-    launch_terminal
+    nohup "$PYTHON" "$APPDIR/server.py" > /dev/null 2>&1 &
     sleep 2
-    xdg-open "https://localhost:5000" >/dev/null 2>&1 &
 fi
 
-
-# ---- TRAY ICON ----
+# Start tray icon
 yad --notification \
     --image="$APPDIR/static/assets/logo192.png" \
     --text="Portify Running" \
-    --command="xdg-open https://localhost:5000" \
-    --menu="Open UI!$APPDIR/tray-actions.sh open\
-           |Restart Server!$APPDIR/tray-actions.sh restart\
-           |Stop Server!$APPDIR/tray-actions.sh stop\
-           |Quit!$APPDIR/tray-actions.sh quit"
+    --menu="Open UI!xdg-open http://localhost:5000|Restart Server!bash -c 'pkill -f server.py; nohup $PYTHON $APPDIR/server.py > /dev/null 2>&1 &'|Stop Server!pkill -f server.py|Quit!pkill -f yad"
