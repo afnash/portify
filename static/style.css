@@ -150,4 +150,18 @@ body{margin:0;background:var(--bg);color:var(--fg);
   background: #3f6aff;
 }
 
+.preview.loading {
+  background: linear-gradient(90deg, #1b1b1b 25%, #2c2c2c 50%, #1b1b1b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  border-radius: 12px;
+  min-height: 100px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+
 @media (max-width:520px){ .bubble{max-width:92%} }

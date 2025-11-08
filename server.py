@@ -1,15 +1,18 @@
-import os, io, socket, threading, time, mimetypes, secrets, random
+import os, io, socket, threading, time, mimetypes, secrets, random, logging,sys
+class NullWriter(io.TextIOBase):
+    def write(self, _): 
+        return 0
+
+sys.stderr = NullWriter()  # completely silence Werkzeug stderr output
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 from datetime import datetime, timedelta
 from flask import Flask, send_from_directory, send_file, request, abort
 from flask_socketio import SocketIO
 from werkzeug.utils import secure_filename
-import logging
 
-# --- Clean all noisy logs ---
-logging.getLogger("werkzeug").setLevel(logging.ERROR)
-logging.getLogger("engineio").setLevel(logging.ERROR)
-logging.getLogger("socketio").setLevel(logging.ERROR)
-
+# --- Silence noisy Werkzeug logs ---
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 # --- Paths / App ---
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -18,14 +21,7 @@ DOWNLOAD_DIR = os.path.expanduser("~/Downloads/Portify")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 app = Flask(__name__, static_folder="static")
-
-socketio = SocketIO(
-    app,
-    cors_allowed_origins="*",
-    async_mode="threading",
-    logger=False,
-    engineio_logger=False
-)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # --- Session Security ---
 SESSION_ID = secrets.token_hex(8)
@@ -33,8 +29,8 @@ OTP = f"{random.randint(0, 999999):06d}"
 verified_sids = set()
 upload_tokens = set()
 
-# print(f"[Portify] Session: {SESSION_ID}")
-# print(f"[Portify] OTP (share locally only): {OTP}") duplication 
+print(f"[Portify] Session: {SESSION_ID}")
+print(f"[Portify] OTP (share locally only): {OTP}")
 
 # --- In-memory state ---
 STATE = {"messages": []}
@@ -55,7 +51,7 @@ def lan_ip():
     return ip
 
 def human_size(num):
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
+    for unit in ["B","KB","MB","GB","TB"]:
         if num < 1024.0:
             return f"{num:.0f} {unit}" if unit == "B" else f"{num:.1f} {unit}"
         num /= 1024.0
@@ -72,11 +68,7 @@ def manifest():
 
 @app.route("/service-worker.js")
 def sw():
-    return send_from_directory(
-        STATIC_DIR,
-        "service-worker.js",
-        mimetype="application/javascript"
-    )
+    return send_from_directory(STATIC_DIR, "service-worker.js", mimetype="application/javascript")
 
 @app.route("/uploads/<path:filename>")
 def uploads(filename):
@@ -96,6 +88,7 @@ def qrcode_png():
         buf.seek(0)
         return send_file(buf, mimetype="image/png")
     except Exception:
+        # tiny valid PNG header fallback
         return send_file(io.BytesIO(b"\x89PNG\r\n\x1a\n"), mimetype="image/png")
 
 # --- Secure Upload (requires token) ---
@@ -113,11 +106,9 @@ def upload():
     for idx, f in enumerate(files):
         if not f or not f.filename:
             continue
-
         name = secure_filename(f.filename)
         path = os.path.join(DOWNLOAD_DIR, name)
         f.save(path)
-
         size = os.path.getsize(path)
         url = f"/uploads/{name}"
         dl = f"/download/{name}"
@@ -134,16 +125,14 @@ def upload():
             "size": size,
             "kind": kind or "application/octet-stream",
         }
-
         STATE["messages"].append(item)
         posted.append(item)
 
     if posted:
         socketio.emit("history_append", {"items": posted})
-
     return {"ok": True}
 
-# --- Stop server endpoint ---
+# --- Stop server endpoint (from UI) ---
 @app.route("/__shutdown__", methods=["POST"])
 def shutdown():
     func = request.environ.get("werkzeug.server.shutdown")
@@ -170,12 +159,10 @@ def on_disconnect():
 def verify_otp(data):
     sid = request.sid
     user_otp = (data or {}).get("otp", "")
-
     if user_otp == OTP:
         verified_sids.add(sid)
         token = secrets.token_hex(16)
         upload_tokens.add(token)
-
         socketio.emit("otp_ok", {"token": token}, to=sid)
         socketio.emit("bootstrap", {"messages": STATE["messages"], "ip": lan_ip()}, to=sid)
     else:
@@ -185,7 +172,6 @@ def verify_otp(data):
 def verify_token(data):
     sid = request.sid
     token = (data or {}).get("token", "")
-
     if token in upload_tokens:
         verified_sids.add(sid)
         socketio.emit("otp_ok", {"token": token}, to=sid)
@@ -197,11 +183,9 @@ def verify_token(data):
 def on_send_text(data):
     if request.sid not in verified_sids:
         return
-
     text = (data or {}).get("text", "").strip()
     if not text:
         return
-
     item = {
         "id": (data.get("id") or secrets.token_hex(6)),
         "type": "text",
@@ -209,26 +193,21 @@ def on_send_text(data):
         "time": now_iso(),
         "client_id": data.get("client_id")
     }
-
     STATE["messages"].append(item)
     socketio.emit("history_append", {"items": [item]})
 
 # --- Auto delete (24h) ---
 def auto_delete(hours=24, interval_sec=1800):
     cutoff = timedelta(hours=hours)
-
     while True:
         try:
             now = datetime.now()
-            keep = []
-            deleted_ids = []
-
+            keep, deleted_ids = [], []
             for item in STATE["messages"]:
                 try:
                     ts = datetime.fromisoformat(item["time"])
                 except:
                     ts = now
-
                 if now - ts > cutoff:
                     if item.get("type") == "file":
                         fp = os.path.join(DOWNLOAD_DIR, item.get("name", ""))
@@ -240,30 +219,18 @@ def auto_delete(hours=24, interval_sec=1800):
                     deleted_ids.append(item.get("id"))
                 else:
                     keep.append(item)
-
             if deleted_ids:
                 STATE["messages"] = keep
                 socketio.emit("delete_items", {"ids": deleted_ids})
-
         except Exception as e:
-            print("AutoDelete error:", e)
-
+            print("[AutoDelete]", e)
         time.sleep(interval_sec)
 
 threading.Thread(target=auto_delete, daemon=True).start()
 
-# --- Entry point ---
+# --- Entry ---
 if __name__ == "__main__":
     ip = lan_ip()
     port = 5000
-
-    print(f"[Portify] Session: {SESSION_ID}")
-    print(f"[Portify] OTP (share locally only): {OTP}")
-    print(f"Portify running on http://{ip}:{port}")
-
-    socketio.run(
-        app,
-        host="0.0.0.0",
-        port=port
-    )
-
+    print(f"[Portify] Running on http://{ip}:{port}")
+    socketio.run(app, host="0.0.0.0", port=port)
