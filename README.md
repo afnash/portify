@@ -169,10 +169,7 @@ To run headless:
 
 Files uploaded are auto-served via /uploads/ and can be downloaded anytime.
 
-## ❤️ Author
 
-Afnash
-💡 Passionate about building useful, privacy-first software.
 
 ## 🪄 Acknowledgements
 
@@ -180,9 +177,6 @@ Flask & Flask-SocketIO community
 
 Inspiration from KDE Connect, Snapdrop & LocalSend
 
-## 🧾 License
-
-MIT License © 2025 Afnash
 
 ##🌟 Support
 
