@@ -41,7 +41,6 @@ Everything stays within your network.
 
 ---
 
-Uploading InShot_20251108_135045248.mp4…
 
 <h2 align="center">📱 App Screenshots</h2>
 <img width="1387" height="941" alt="Screenshot from 2025-11-08 13-18-05" src="https://github.com/user-attachments/assets/18120094-036a-48a2-8e80-1f2fb5a07ad0" />
