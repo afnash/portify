@@ -36,7 +36,23 @@ Minimal, dark/light glassmorphism interface inspired by iOS.
 No internet, no external APIs.  
 Everything stays within your network.
 
+## The thing :
+
+
 ---
+
+Uploading InShot_20251108_135045248.mp4…
+
+<h2 align="center">📱 App Screenshots</h2>
+<img width="1387" height="941" alt="Screenshot from 2025-11-08 13-18-05" src="https://github.com/user-attachments/assets/18120094-036a-48a2-8e80-1f2fb5a07ad0" />
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/044d3d78-1fa5-4635-a530-57abd92e8e74" width="30%" alt="Screenshot 2" />
+  <img src="https://github.com/user-attachments/assets/d73cbc5e-c3ee-472d-92af-75fdaf8b9596" width="30%" alt="Screenshot 1" />
+  <img src="https://github.com/user-attachments/assets/b00ce8cd-5dd3-4ec5-b389-e23aaae4dbce" width="30%" alt="Screenshot 3" />
+</p>
+
+
+
 
 ## 🚀 Getting Started
 
